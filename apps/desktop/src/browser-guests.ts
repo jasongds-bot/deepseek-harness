@@ -1,5 +1,5 @@
 /** Main-process ownership and fixed isolation policy for Sidebar webview guests. */
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { app, session, type BrowserWindow, type Session, type WebContents } from 'electron'
 import type { DesktopBrowserLeaseId, DesktopBrowserOpenRequest, DesktopBrowserReservation } from '@deepseek-ai/dsh-client-ui-sidebar-browser/types'
 import { DESKTOP_IPC } from './ipc.ts'
@@ -21,7 +21,7 @@ export class DesktopBrowserGuests {
   constructor(private readonly hostUrl: () => string | undefined) {}
 
   /**
-   * Reserve one guest in a workspace's process-lifetime partition.
+   * Reserve one guest in a persistent partition isolated to a workspace identity.
    * @param owner - authenticated primary application WebContents.
    * @param workspace - workspace identity received over IPC.
    * @returns opaque lease and the partition approved for it.
@@ -32,7 +32,10 @@ export class DesktopBrowserGuests {
     }
     let partition = this.partitions.get(workspace)
     if (partition === undefined) {
-      partition = `dsh-sidebar-browser-${randomUUID()}`
+      // A stable opaque partition name keeps this workspace's authenticated browser storage
+      // across DSH restarts without sharing it with other workspace identities.
+      const account = createHash('sha256').update(workspace, 'utf8').digest('hex')
+      partition = `persist:dsh-sidebar-browser-${account}`
       this.configureSession(session.fromPartition(partition))
       this.partitions.set(workspace, partition)
     }
