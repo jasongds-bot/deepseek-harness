@@ -28,9 +28,9 @@ Browser 分别拥有 Host 与 Client 编译程序。Desktop 和 Host 聚合配�
 
 ### Storage ownership
 
-`DesktopBrowserGuests` 为每个规范化 CWD 存储账号分配随机、非持久化的 Electron partition。Client 使用 Host 规范化后的 `WorkspaceView.path`，不使用 Workspace 记录 UUID，因此在同一目录重建 Workspace 不改变存储账号 key。DSH Session 解析到同一 CWD 的 Browser Tab 共享账号；没有可解析 Workspace 的 Session 仍单独隔离。Workspace 归属在 Client 收到权威基线后解析，并在一次 guest occurrence 内保持不变。CWD key 控制共享关系，不决定是否落盘。
+`DesktopBrowserGuests` 为每个规范化 CWD 存储账号分配确定性、持久化的 Electron partition。partition 名称是 workspace identity 的不透明 SHA-256 摘要，并带有 Electron `persist:` 前缀；原始 CWD 不会写入 partition 名称。Client 使用 Host 规范化后的 `WorkspaceView.path`，不使用 Workspace 记录 UUID，因此在同一目录重建 Workspace 不改变存储账号 key。DSH Session 解析到同一 CWD 的 Browser Tab 共享账号；没有可解析 Workspace 的 Session 仍单独隔离。Workspace 归属在 Client 收到权威基线后解析，并在一次 guest occurrence 内保持不变。CWD key 控制共享关系与持久化。
 
-关闭 tab 只释放它的 guest，不清空账号的 Cookie 或存储。Cookie、localStorage、IndexedDB、Service Worker 与缓存由 partition 持有，并继续遵循普通 origin 规则。DOM、原生 history 与 sessionStorage 仍由页面持有。账号 partition 在同一 Electron 进程内重建窗口后仍保留，但不跨应用退出持久化。
+关闭 tab 只释放它的 guest，不清空账号的 Cookie 或存储。Cookie、localStorage、IndexedDB、Service Worker 与缓存由 partition 持有，并继续遵循普通 origin 规则。DOM、原生 history 与 sessionStorage 仍由页面持有。账号 partition 在窗口重建和完整退出并重新启动 DSH 后仍保留。Cookie、localStorage、IndexedDB、Service Worker 与缓存会保存在 Electron 应用 user-data 目录，直到用户清理浏览器存储或移除应用配置文件。关闭 guest 或释放租约不会清空账号数据。持久化按 workspace identity 隔离；不同 CWD 账号使用不同 partition。
 
 ### Initial guest policy
 
@@ -52,7 +52,7 @@ Desktop toolbar 没有关闭 sandbox 的开关。实现不增加远程调试端�
 
 ## Consequences
 
-Sidebar 持有的稳定祖先保留页面，无需 Browser 自行处理几何或遮挡。隐藏 guest 保留页面内存，也可能继续联网；当前没有空闲回收策略。持久化存储、可选择的隔离级别与权限授权 UI 留作独立工作。临时 Workspace partition 是当前策略，并不意味着 Workspace 隔离必然要求临时存储。
+Sidebar 持有的稳定祖先保留页面，无需 Browser 自行处理几何或遮挡。隐藏 guest 保留页面内存，也可能继续联网；当前没有空闲回收策略。持久化存储是该浏览器集成的默认行为；可选择的隔离级别与权限授权 UI 留作独立工作。由于认证数据现在会保留在磁盘上，Windows/macOS 用户账户及 DSH 应用数据目录的访问权限也属于浏览器数据安全边界。
 
 定向测试覆盖原生导航错误恢复、preload 监听范围和已迁移的 iframe 行为。这些测试不能确认真实 Electron 的挂载时序、遮挡、焦点、平台样式或存储隔离；这些仍是运行时验证缺口。本次变更不附带 GUI 录像。此实现不构成完整浏览器安全策略已经可以发布的证据。
 
