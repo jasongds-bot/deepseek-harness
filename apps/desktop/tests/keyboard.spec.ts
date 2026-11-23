@@ -32,12 +32,13 @@ const overlays = await vi.hoisted(async () => {
   }
   return { Window }
 })
-vi.mock('electron', () => ({ ipcMain: ipc, BrowserWindow: overlays.Window, WebContentsView: overlays.Window, app: { isPackaged: true }, session: { fromPartition: () => ({
+vi.mock('electron', () => ({ ipcMain: ipc, BrowserWindow: overlays.Window, WebContentsView: overlays.Window, app: { isPackaged: true }, session: { fromPartition: vi.fn(() => ({
   setPermissionRequestHandler: vi.fn(), setPermissionCheckHandler: vi.fn(), setDevicePermissionHandler: vi.fn(),
   setDisplayMediaRequestHandler: vi.fn(), on: vi.fn(), webRequest: { onBeforeRequest: vi.fn() },
-}) } }))
+})) } }))
 const { installDesktopShortcuts } = await import('../src/keyboard.ts')
 const { DesktopBrowserGuests } = await import('../src/browser-guests.ts')
+const { session } = await import('electron')
 const { DesktopUpdateOverlays } = await import('../src/update-overlay.ts')
 afterEach(() => { vi.clearAllMocks() })
 
@@ -121,6 +122,20 @@ function updateOverlayFixture(f: Awaited<ReturnType<typeof fixture>>) {
     return overlay
   }
 }
+
+it('uses a persistent, stable and workspace-isolated browser partition across Desktop restarts', () => {
+  const owner = new EventEmitter() as unknown as ContentsFixture
+  const workspace = 'C:\\trade\\workspace-a'
+  const first = new DesktopBrowserGuests(() => undefined).acquire(owner, workspace)
+  const afterRestart = new DesktopBrowserGuests(() => undefined).acquire(owner, workspace)
+  const otherWorkspace = new DesktopBrowserGuests(() => undefined).acquire(owner, 'C:\\trade\\workspace-b')
+
+  expect(first.partition).toMatch(/^persist:dsh-sidebar-browser-[a-f0-9]{64}$/)
+  expect(afterRestart.partition).toBe(first.partition)
+  expect(afterRestart.lease).not.toBe(first.lease)
+  expect(otherWorkspace.partition).not.toBe(first.partition)
+  expect(session.fromPartition).toHaveBeenCalledWith(first.partition)
+})
 
 it('mirrors only successful bindings, suppresses recording menus, and invalidates pre-navigation drafts', async () => {
   const f = await fixture()
