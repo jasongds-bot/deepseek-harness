@@ -28,9 +28,9 @@ Browser has separate Host and Client compiler programs. Desktop and the Host agg
 
 ### Storage ownership
 
-`DesktopBrowserGuests` assigns a random, non-persistent Electron partition to each canonical CWD account. The Client uses the Host-normalized `WorkspaceView.path`, not the Workspace record UUID, so recreating a Workspace at the same directory does not change its storage account key. Browser tabs whose DSH Sessions resolve to that CWD share the account; Sessions without a resolved Workspace remain separately isolated. Workspace membership is resolved after the Client receives its authoritative baseline and is fixed for a guest occurrence. The CWD key controls sharing, not disk persistence.
+`DesktopBrowserGuests` assigns a deterministic, persistent Electron partition to each canonical CWD account. The partition name is an opaque SHA-256 digest of the workspace identity with Electron's `persist:` prefix; the raw CWD is never embedded in the partition name. The Client uses the Host-normalized `WorkspaceView.path`, not the Workspace record UUID, so recreating a Workspace at the same directory does not change its storage account key. Browser tabs whose DSH Sessions resolve to that CWD share the account; Sessions without a resolved Workspace remain separately isolated. Workspace membership is resolved after the Client receives its authoritative baseline and is fixed for a guest occurrence. The CWD key controls sharing and persistence.
 
-Closing a tab releases its guest, not its account's cookies or storage. Cookies, localStorage, IndexedDB, Service Workers and cache remain partition-owned and subject to normal origin rules. DOM, native history and sessionStorage remain page-owned. Account partitions survive window recreation within the Electron process but do not persist across application exit.
+Closing a tab releases its guest, not its account's cookies or storage. Cookies, localStorage, IndexedDB, Service Workers and cache remain partition-owned and subject to normal origin rules. DOM, native history and sessionStorage remain page-owned. Account partitions survive window recreation and full DSH application restarts. Cookies, localStorage, IndexedDB, Service Workers and cache remain on disk in Electron's application user-data area until the user clears that browser storage or the application profile is removed. Closing a guest or releasing a lease does not clear account data. Persistence is scoped by workspace identity; distinct CWD accounts receive distinct partitions.
 
 ### Initial guest policy
 
@@ -52,7 +52,7 @@ The Desktop toolbar has no sandbox-disable switch. The implementation adds no re
 
 ## Consequences
 
-Sidebar-owned stable ancestors preserve the page without Browser-owned geometry or occlusion handling. Hidden guests retain page memory and may continue network activity; there is no idle eviction policy. Persistent storage, selectable isolation scopes and permission-grant UI remain separate work. Temporary Workspace partitions are the current policy, not a promise that Workspace isolation always implies temporary storage.
+Sidebar-owned stable ancestors preserve the page without Browser-owned geometry or occlusion handling. Hidden guests retain page memory and may continue network activity; there is no idle eviction policy. Persistent storage is the default for this browser integration; selectable isolation scopes and permission-grant UI remain separate work. Because authentication data is now retained on disk, access to the Windows/macOS user account and DSH application data directory is part of the browser-data security boundary. Temporary Workspace partitions are the current policy, not a promise that Workspace isolation always implies temporary storage.
 
 Focused tests cover native navigation error recovery, preload listener scoping and migrated iframe behavior. They do not establish real Electron attachment timing, overlap, focus, platform styling or storage isolation; those remain runtime verification gaps. No GUI recording accompanies the change. This implementation is not evidence that the complete browser security policy is ready for release.
 
